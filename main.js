@@ -177,6 +177,6 @@ x1="384" y1="316" x2="416" y2="284"
  }
 }
 
-ReactDOM.render(<DoorUI />, document.getElementById('app');
+ReactDOM.render(<DoorUI />, document.getElementById('app'));
 
 TweenMax.globalTimeScale(1.5)
