@@ -1,182 +1,302 @@
-class DoorUI extends React.Component {
- constructor(props) {
-  super(props);
-  this.state = { open: true };
-  this.tl = new TimelineMax({});
- }
+const {
+  React: { useState, useRef, useEffect, Fragment },
+  ReactDOM: { render },
+  gsap: {
+    set,
+    to,
+    timeline,
+    utils: { random },
+  },
+} = window
+const rootNode = document.getElementById('app')
+const armLimit = random(0, 3)
+const headLimit = random(armLimit + 1, armLimit + 3)
+const angerLimit = random(headLimit + 1, headLimit + 3)
+const armDuration = 0.2
+const bearDuration = 0.25
+const checkboxDuration = 0.25
+const pawDuration = 0.1
 
- onLoaded() {
-
- }
-
- componentDidMount() {
-  this.onLoaded();
- }
-
- componentDidUpdate = e => {
-
-  var tl = new TimelineMax({onComplete:this.setBtnEnabled, onCompleteParams:[true]}).timeScale(1.8);
-   tl.staggerTo('.radialGroup g', 1, {
-    fill:(this.state.open) ? '#41E969' : '#F70048'
-   },0.2)
-  .to('.bar', 0.4, {
-    strokeWidth:(this.state.open) ? 0 : 4,
-    transformOrigin:'50% 50%',
-   stroke:(this.state.open) ? '#41E969' : '#F70048',
-    ease:Sine.easeOut
-  },0)
-  .to( '.ring', 0.4, {
-   stroke:(this.state.open) ? '#41E969' : '#F70048'
-  },0)
-.staggerTo('.radialGroup g', 0.3, {
-    cycle:{
-     alpha:[0]
-
-    },
-    repeat:1,
-    ease:Sine.easeOut,
-    yoyoEase:Sine.easeOut
-   },0.1, 0)
-.staggerTo('.radialGroup g path', 0.3, {
-    cycle:{
-     scale:[ 0.95]
-    },
-    repeat:1,
-    svgOrigin:'400 300',
-    ease:Sine.easeIn,
-    yoyoEase:Sine.easeOut//Elastic.easeOut.config(0.5,0.75)
-   },0.0163, 0.1)
-  .to('.radialGroup', 1, {
-    svgOrigin:'400 300',
-    ease:Elastic.easeOut.config(0.5,0.75),
-    rotation:'+=36'
-   },0)
-  .to('.icon', 1, {
-    svgOrigin:'400 300',
-    transformOrigin:'50% 50%',
-    ease:Sine.easeOut,
-    //ease:Elastic.easeOut.config(0.5,0.75),
-    rotation:(this.state.open) ? '+=0' : '-=180'
-   },0.1)
- .to('.icon', 0.4, {
-    scale:0.9,
-    svgOrigin:'400 300',
-    transformOrigin:'50% 50%',
-    ease:Sine.easeOut,
-    yoyoEase:Elastic.easeOut.config(0.5,0.75),
-    repeat:1
-   },0)
- }
-setBtnEnabled = e => {
-  this.refs.hitBtn.setAttribute("class", (!e) ? 'disabled' : 'enabled');
-
+const SOUNDS = {
+  ON: new Audio('https://assets.codepen.io/605876/switch-on.mp3'),
+  OFF: new Audio('https://assets.codepen.io/605876/switch-off.mp3'),
+  GROAN: new Audio('https://assets.codepen.io/605876/bear-groan.mp3'),
 }
+SOUNDS.GROAN.playbackRate = 2
 
- toggle = e => {
-  this.setBtnEnabled(false);
-  this.setState({ open: !this.state.open });
+const App = () => {
+  const [checked, setChecked] = useState(false)
+  const [count, setCount] = useState(1)
+  const bearRef = useRef(null)
+  const swearRef = useRef(null)
+  const armWrapRef = useRef(null)
+  const pawRef = useRef(null)
+  const armRef = useRef(null)
+  const bgRef = useRef(null)
+  const indicatorRef = useRef(null)
 
- };
+  const onHover = () => {
+    if (Math.random() > 0.5 && count > armLimit) {
+      to(bearRef.current, bearDuration / 2, { y: '40%' })
+    }
+  }
+  const offHover = () => {
+    if (!checked) {
+      to(bearRef.current, bearDuration / 2, { y: '100%' })
+    }
+  }
+  const onChange = () => {
+    if (checked) return
+    setChecked(true)
+  }
 
+  useEffect(() => {
+    const grabBearTL = () => {
+      /**
+       * Different height translations for the bear elements
+       *
+       * Paw will go to scaleX 0.8
+       * Arm scaleX goes down to 0.7
+       * Arm wrap translates to 50% or 50px
+       * Bear goes 100% -> 40% -> 0
+       */
+      let bearTranslation
+      if (count > armLimit && count < headLimit) {
+        bearTranslation = '40%'
+      } else if (count >= headLimit) {
+        bearTranslation = '0%'
+      }
+      const onComplete = () => {
+        setChecked(false)
+        setCount(count + 1)
+      }
+      let onBearComplete = () => {}
+      if (Math.random() > 0.5 && count > angerLimit)
+        onBearComplete = () => {
+          SOUNDS.GROAN.play()
+          set(swearRef.current, { display: 'block' })
+        }
+      const base = armDuration + armDuration + pawDuration
+      const preDelay = Math.random()
+      const delay = count > armLimit ? base + bearDuration + preDelay : base
+      const bearTL = timeline({ delay: Math.random(), onComplete })
+      bearTL
+        .add(
+          count > armLimit
+            ? to(bearRef.current, {
+                duration: bearDuration,
+                onComplete: onBearComplete,
+                y: bearTranslation,
+              })
+            : () => {}
+        )
+        .to(
+          armWrapRef.current,
+          { x: 50, duration: armDuration },
+          count > armLimit ? preDelay : 0
+        )
+        .to(armRef.current, { scaleX: 0.7, duration: armDuration })
+        .to(pawRef.current, {
+          duration: pawDuration,
+          scaleX: 0.8,
+          onComplete: () => set(swearRef.current, { display: 'none' }),
+        })
+        .to(
+          bgRef.current,
+          {
+            onStart: () => {
+              SOUNDS.OFF.play()
+            },
+            duration: checkboxDuration,
+            backgroundColor: '#aaa',
+          },
+          delay
+        )
+        .to(
+          indicatorRef.current,
+          { duration: checkboxDuration, x: '0%' },
+          delay
+        )
+        .to(pawRef.current, { duration: pawDuration, scaleX: 0 }, delay)
+        .to(
+          armRef.current,
+          { duration: pawDuration, scaleX: 1 },
+          delay + pawDuration
+        )
+        .to(
+          armWrapRef.current,
+          { duration: armDuration, x: 0 },
+          delay + pawDuration
+        )
+        .to(
+          bearRef.current,
+          { duration: bearDuration, y: '100%' },
+          delay + pawDuration
+        )
+      return bearTL
+    }
+    const showTimeline = () => {
+      timeline({
+        onStart: () => SOUNDS.ON.play(),
+      })
+        .to(
+          bgRef.current,
+          { duration: checkboxDuration, backgroundColor: '#2eec71' },
+          0
+        )
+        .to(indicatorRef.current, { duration: checkboxDuration, x: '100%' }, 0)
+        .add(grabBearTL(), checkboxDuration)
+    }
+    if (checked) showTimeline()
+  }, [checked, count])
 
- render() {
   return (
-   <svg viewBox="200 150 400 300" preserveAspectRatio="xMidYMid meet">
-    <title>uiDoorLock</title>
-    <defs>
-     <circle
-      id="ring"
-      cx="400"
-      cy="300"
-      r="23"
-      strokeMiterlimit="10"
-      strokeWidth="4"
-     />
-     <circle
-      id="hitRing"
-      cx="400"
-      cy="300"
-      r="100"
-      strokeMiterlimit="10"
-      strokeWidth="4"
-     />
-     <clipPath id="ringMask">
-      <use xlinkHref="#ring" fill="red"/>
-     </clipPath>
-    </defs>
-    <g className="radialGroup">
-        <g opacity="0.6" fill="#47ac51">
-          <path d="M405.89,246.78l-1.14,7.2a1,1,0,0,1-1.06.84,45.61,45.61,0,0,0-21.17,3.34,1,1,0,0,1-1.27-.47l-3.32-6.5a1,1,0,0,1,.5-1.38A54.84,54.84,0,0,1,405,245.62,1,1,0,0,1,405.89,246.78Z"/>
-          <path d="M376.79,260a1,1,0,0,1-.38,1.3,45.81,45.81,0,0,0-8.48,6.68,45.34,45.34,0,0,0-6.67,8.48,1,1,0,0,1-1.31.38l-6.49-3.32a1,1,0,0,1-.42-1.4,54.33,54.33,0,0,1,19-19,1,1,0,0,1,1.4.42Z"/>
-          <path d="M452.45,289.17l-7.22,1.14a1,1,0,0,1-1.12-.77,45,45,0,0,0-9.71-19.09,1,1,0,0,1,.05-1.36l5.16-5.17a1,1,0,0,1,1.46,0,54.39,54.39,0,0,1,12.21,24A1,1,0,0,1,452.45,289.17Z"/>
-          <path d="M390.3,345.23l-1.13,7.22a1,1,0,0,1-1.21.83,54.39,54.39,0,0,1-24-12.21,1,1,0,0,1,0-1.46l5.17-5.16a1,1,0,0,1,1.36-.05,45,45,0,0,0,19.09,9.71A1,1,0,0,1,390.3,345.23Z"/>
-          <path d="M448.81,322.07l-6.5-3.32a1,1,0,0,1-.47-1.27,45.61,45.61,0,0,0,3.34-21.17,1,1,0,0,1,.84-1.06l7.2-1.14a1,1,0,0,1,1.16.89,54.84,54.84,0,0,1-4.19,26.57A1,1,0,0,1,448.81,322.07Z"/>
-          <path d="M446.54,326.52a1,1,0,0,1,.42,1.4,54.25,54.25,0,0,1-19,19,1,1,0,0,1-1.4-.42l-3.31-6.49a1,1,0,0,1,.38-1.3,45.78,45.78,0,0,0,15.16-15.16,1,1,0,0,1,1.3-.38Z"/>
-          <path d="M421.57,350.19A54.84,54.84,0,0,1,395,354.38a1,1,0,0,1-.89-1.16l1.14-7.2a1,1,0,0,1,1.06-.84,45.61,45.61,0,0,0,21.17-3.34,1,1,0,0,1,1.27.47l3.32,6.5A1,1,0,0,1,421.57,350.19Z"/>
-          <path d="M365.55,330.91l-5.16,5.17a1,1,0,0,1-1.46,0,54.39,54.39,0,0,1-12.21-24,1,1,0,0,1,.83-1.21l7.22-1.13a1,1,0,0,1,1.12.76,45,45,0,0,0,9.71,19.09A1,1,0,0,1,365.55,330.91Z"/>
-          <path d="M354,304.75l-7.2,1.14a1,1,0,0,1-1.16-.89,54.84,54.84,0,0,1,4.19-26.57,1,1,0,0,1,1.38-.5l6.5,3.32a1,1,0,0,1,.47,1.27,45.61,45.61,0,0,0-3.34,21.17A1,1,0,0,1,354,304.75Z"/>
-          <path d="M436.08,260.39l-5.17,5.16a1,1,0,0,1-1.36.05,45,45,0,0,0-19.09-9.71,1,1,0,0,1-.76-1.12l1.13-7.22a1,1,0,0,1,1.21-.83,54.39,54.39,0,0,1,24,12.21A1,1,0,0,1,436.08,260.39Z"/>
-        </g>
-        <g opacity="0.4" fill="#47ac51">
-          <path d="M466.58,286.92l-7.21,1.14a1,1,0,0,1-1.12-.77,59.37,59.37,0,0,0-13.72-27,1,1,0,0,1,0-1.37l5.15-5.15a1,1,0,0,1,1.45,0,68.56,68.56,0,0,1,16.24,31.88A1,1,0,0,1,466.58,286.92Z"/>
-          <path d="M388.06,359.37l-1.14,7.21a1,1,0,0,1-1.19.83,68.56,68.56,0,0,1-31.88-16.24,1,1,0,0,1,0-1.45l5.15-5.15a1,1,0,0,1,1.37,0,59.37,59.37,0,0,0,27,13.72A1,1,0,0,1,388.06,359.37Z"/>
-          <path d="M461.57,328.57l-6.5-3.32a1,1,0,0,1-.46-1.29,59.8,59.8,0,0,0,4.7-29.87,1,1,0,0,1,.83-1.09l7.2-1.14a1,1,0,0,1,1.16.89A69.25,69.25,0,0,1,463,328.09,1,1,0,0,1,461.57,328.57Z"/>
-          <path d="M428.09,363a69.25,69.25,0,0,1-35.34,5.55,1,1,0,0,1-.89-1.16l1.14-7.2a1,1,0,0,1,1.09-.83,60,60,0,0,0,29.87-4.7,1,1,0,0,1,1.29.46l3.32,6.5A1,1,0,0,1,428.09,363Z"/>
-          <path d="M459.29,333a1,1,0,0,1,.42,1.4,68.54,68.54,0,0,1-25.3,25.3,1,1,0,0,1-1.4-.42l-3.3-6.5a1,1,0,0,1,.39-1.31,59.53,59.53,0,0,0,21.38-21.38,1,1,0,0,1,1.31-.39Z"/>
-          <path d="M446.18,250.28,441,255.43a1,1,0,0,1-1.37,0,59.37,59.37,0,0,0-27-13.72,1,1,0,0,1-.77-1.12l1.14-7.21a1,1,0,0,1,1.19-.83,68.56,68.56,0,0,1,31.88,16.24A1,1,0,0,1,446.18,250.28Z"/>
-          <path d="M355.43,341l-5.15,5.15a1,1,0,0,1-1.45,0,68.56,68.56,0,0,1-16.24-31.88,1,1,0,0,1,.83-1.19l7.21-1.14a1,1,0,0,1,1.12.77,59.37,59.37,0,0,0,13.72,27A1,1,0,0,1,355.43,341Z"/>
-          <path d="M408.14,232.66l-1.14,7.2a1,1,0,0,1-1.09.83,59.8,59.8,0,0,0-29.87,4.7,1,1,0,0,1-1.29-.46l-3.32-6.5a1,1,0,0,1,.48-1.38,69.25,69.25,0,0,1,35.34-5.55A1,1,0,0,1,408.14,232.66Z"/>
-          <path d="M339.86,307l-7.2,1.14a1,1,0,0,1-1.16-.89,69.25,69.25,0,0,1,5.55-35.34,1,1,0,0,1,1.38-.48l6.5,3.32a1,1,0,0,1,.46,1.29,59.8,59.8,0,0,0-4.7,29.87A1,1,0,0,1,339.86,307Z"/>
-          <path d="M370.29,247.21a1,1,0,0,1-.39,1.31,59.53,59.53,0,0,0-21.38,21.38,1,1,0,0,1-1.31.39l-6.5-3.3a1,1,0,0,1-.42-1.4,68.54,68.54,0,0,1,25.3-25.3,1,1,0,0,1,1.4.42Z"/>
-        </g>
-        <g opacity="0.15" fill="#47ac51">
-          <path d="M434.58,375.68a83.52,83.52,0,0,1-44.07,6.93,1,1,0,0,1-.88-1.15l1.14-7.2a1,1,0,0,1,1.1-.83,74.22,74.22,0,0,0,38.58-6.06,1,1,0,0,1,1.3.45l3.31,6.49A1,1,0,0,1,434.58,375.68Z"/>
-          <path d="M472,339.51a1,1,0,0,1,.42,1.38,82.68,82.68,0,0,1-31.56,31.56,1,1,0,0,1-1.38-.42l-3.31-6.49a1,1,0,0,1,.4-1.32,74.14,74.14,0,0,0,15.68-11.94,73.37,73.37,0,0,0,11.94-15.69,1,1,0,0,1,1.32-.4Z"/>
-          <path d="M480.7,284.68l-7.2,1.15a1,1,0,0,1-1.13-.79,73.35,73.35,0,0,0-17.72-34.8,1,1,0,0,1,0-1.37l5.15-5.16a1,1,0,0,1,1.45,0,82.69,82.69,0,0,1,20.26,39.76A1,1,0,0,1,480.7,284.68Z"/>
-          <path d="M385.83,373.5l-1.15,7.2a1,1,0,0,1-1.18.83,82.69,82.69,0,0,1-39.76-20.26,1,1,0,0,1,0-1.45l5.16-5.15a1,1,0,0,1,1.37,0A73.35,73.35,0,0,0,385,372.37,1,1,0,0,1,385.83,373.5Z"/>
-          <path d="M474.31,335.06l-6.49-3.31a1,1,0,0,1-.45-1.3,74.22,74.22,0,0,0,6.06-38.58,1,1,0,0,1,.83-1.1l7.2-1.14a1,1,0,0,1,1.15.88,83.52,83.52,0,0,1-6.93,44.07A1,1,0,0,1,474.31,335.06Z"/>
-          <path d="M345.33,351.13l-5.15,5.16a1,1,0,0,1-1.45,0,82.69,82.69,0,0,1-20.26-39.76,1,1,0,0,1,.83-1.18l7.2-1.15a1,1,0,0,1,1.13.79,73.35,73.35,0,0,0,17.72,34.8A1,1,0,0,1,345.33,351.13Z"/>
-          <path d="M410.37,218.54l-1.14,7.2a1,1,0,0,1-1.1.83,74.22,74.22,0,0,0-38.58,6.06,1,1,0,0,1-1.3-.45l-3.31-6.49a1,1,0,0,1,.48-1.37,83.52,83.52,0,0,1,44.07-6.93A1,1,0,0,1,410.37,218.54Z"/>
-          <path d="M456.29,240.18l-5.16,5.15a1,1,0,0,1-1.37,0A73.35,73.35,0,0,0,415,227.63a1,1,0,0,1-.79-1.13l1.15-7.2a1,1,0,0,1,1.18-.83,82.69,82.69,0,0,1,39.76,20.26A1,1,0,0,1,456.29,240.18Z"/>
-          <path d="M325.74,309.23l-7.2,1.14a1,1,0,0,1-1.15-.88,83.52,83.52,0,0,1,6.93-44.07,1,1,0,0,1,1.37-.48l6.49,3.31a1,1,0,0,1,.45,1.3,74.22,74.22,0,0,0-6.06,38.58A1,1,0,0,1,325.74,309.23Z"/>
-          <path d="M363.81,234.46a1,1,0,0,1-.4,1.32,73.37,73.37,0,0,0-15.69,11.94,74.14,74.14,0,0,0-11.94,15.68,1,1,0,0,1-1.32.4L328,260.49a1,1,0,0,1-.42-1.38,82.68,82.68,0,0,1,31.56-31.56,1,1,0,0,1,1.38.42Z"/>
-        </g>
-        <g opacity="0.05" fill="#47ac51">
-          <path d="M494.81,282.45l-7.19,1.14a1,1,0,0,1-1.13-.79,87.72,87.72,0,0,0-21.71-42.68,1,1,0,0,1,0-1.38l5.16-5.16a1,1,0,0,1,1.44,0,96.91,96.91,0,0,1,24.25,47.66A1,1,0,0,1,494.81,282.45Z"/>
-          <path d="M487.05,341.55l-6.5-3.32a1,1,0,0,1-.45-1.3,88.54,88.54,0,0,0,7.46-47.3,1,1,0,0,1,.83-1.1l7.19-1.14a1,1,0,0,1,1.16.87,97.9,97.9,0,0,1-8.32,52.82A1,1,0,0,1,487.05,341.55Z"/>
-          <path d="M383.59,387.62l-1.14,7.19a1,1,0,0,1-1.18.84,96.91,96.91,0,0,1-47.66-24.25,1,1,0,0,1,0-1.44l5.16-5.16a1,1,0,0,1,1.38,0,87.72,87.72,0,0,0,42.68,21.71A1,1,0,0,1,383.59,387.62Z"/>
-          <path d="M311.61,311.47l-7.19,1.14a1,1,0,0,1-1.16-.87,97.89,97.89,0,0,1,8.32-52.82,1,1,0,0,1,1.37-.47l6.5,3.32a1,1,0,0,1,.45,1.3,88.54,88.54,0,0,0-7.46,47.3A1,1,0,0,1,311.61,311.47Z"/>
-          <path d="M335.2,361.26,330,366.42a1,1,0,0,1-1.44,0,96.91,96.91,0,0,1-24.25-47.66,1,1,0,0,1,.84-1.18l7.19-1.14a1,1,0,0,1,1.13.79,87.72,87.72,0,0,0,21.71,42.68A1,1,0,0,1,335.2,361.26Z"/>
-          <path d="M357.3,221.71a1,1,0,0,1-.4,1.31A88.37,88.37,0,0,0,323,256.9a1,1,0,0,1-1.31.4l-6.5-3.31a1,1,0,0,1-.42-1.38,97.64,97.64,0,0,1,37.82-37.82,1,1,0,0,1,1.38.42Z"/>
-          <path d="M412.61,204.42l-1.14,7.19a1,1,0,0,1-1.1.83,88.53,88.53,0,0,0-47.3,7.45,1,1,0,0,1-1.3-.44l-3.32-6.5a1,1,0,0,1,.47-1.37,97.9,97.9,0,0,1,52.82-8.32A1,1,0,0,1,412.61,204.42Z"/>
-          <path d="M441.08,388.42a97.89,97.89,0,0,1-52.82,8.32,1,1,0,0,1-.87-1.16l1.14-7.19a1,1,0,0,1,1.1-.83,88.54,88.54,0,0,0,47.3-7.46,1,1,0,0,1,1.3.45l3.32,6.5A1,1,0,0,1,441.08,388.42Z"/>
-          <path d="M484.79,346a1,1,0,0,1,.42,1.38,97.64,97.64,0,0,1-37.82,37.82,1,1,0,0,1-1.38-.42l-3.31-6.5a1,1,0,0,1,.4-1.31A88.37,88.37,0,0,0,477,343.1a1,1,0,0,1,1.31-.4Z"/>
-          <path d="M466.42,230l-5.16,5.16a1,1,0,0,1-1.38,0,87.72,87.72,0,0,0-42.68-21.71,1,1,0,0,1-.79-1.13l1.14-7.19a1,1,0,0,1,1.18-.84,96.91,96.91,0,0,1,47.66,24.25A1,1,0,0,1,466.42,230Z"/>
-        </g>
-    </g>
-    <g className="icon">
-     <use xlinkHref="#ring" stroke="#41E969" fill="none" className="ring"/>
-     <g className="lockBar" clipPath="url(#ringMask)">
-    <line
-     className="bar"
-x1="384" y1="316" x2="416" y2="284"
-     fill="none"
-     stroke="#41E969"
-     strokeMiterlimit="10"
-     strokeWidth="0"
-    />
-    </g>
-    </g>
-    <use xlinkHref="#hitRing" stroke="none" fill="transparent"
-     onClick={this.toggle}
-
-     ref="hitBtn"
-     />
-   </svg>
-  );
- }
+    <Fragment>
+      <div className="bear__wrap">
+        <div ref={swearRef} className="bear__swear">
+          #@$%*!
+        </div>
+        <svg
+          ref={bearRef}
+          className="bear"
+          viewBox="0 0 284.94574 359.73706"
+          preserveAspectRatio="xMinYMin">
+          <g id="layer1" transform="translate(-7.5271369,-761.38595)">
+            <g
+              id="g5691"
+              transform="matrix(1.2335313,0,0,1.2335313,-35.029693,-212.83637)">
+              <path
+                id="path4372"
+                d="M 263.90933,1081.4151 A 113.96792,96.862576 0 0 0 149.99132,985.71456 113.96792,96.862576 0 0 0 36.090664,1081.4151 l 227.818666,0 z"
+                style={{ fill: '#784421', fillOpacity: 1 }}
+              />
+              <path
+                id="path5634"
+                d="m 250.42825,903.36218 c 2e-5,66.27108 -44.75411,114.99442 -102.42825,114.99442 -57.674143,0 -98.428271,-48.72334 -98.428251,-114.99442 4e-6,-66.27106 40.754125,-92.99437 98.428251,-92.99437 57.67413,0 102.42825,26.72331 102.42825,92.99437 z"
+                style={{ fill: '#784421', fillOpacity: 1 }}
+              />
+              <path
+                id="path5639"
+                d="m 217,972.86218 c 2e-5,21.53911 -30.44462,42.00002 -68,42.00002 -37.55538,0 -66.000019,-20.46091 -66,-42.00002 0,-21.53911 28.44464,-36 66,-36 37.55536,0 68,14.46089 68,36 z"
+                style={{ fill: '#e9c6af', illOpacity: 1 }}
+              />
+              <path
+                id="path5636"
+                d="m 181.5,944.36218 c 0,8.28427 -20.59974,26.5 -32.75,26.5 -12.15026,0 -34.75,-18.21573 -34.75,-26.5 0,-8.28427 22.59974,-13.5 34.75,-13.5 12.15026,0 32.75,5.21573 32.75,13.5 z"
+                style={{ fill: '#000000', fillOpacity: 1 }}
+              />
+              <g id="g5681">
+                <ellipse
+                  style={{ fill: '#784421', fillOpacity: 1 }}
+                  id="path5657"
+                  cx="69"
+                  cy="823.07269"
+                  rx="34.5"
+                  ry="33.289474"
+                />
+                <path
+                  style={{ fill: '#e9c6af', fillOpacity: 1 }}
+                  d="M 69,47.310547 A 24.25,23.399124 0 0 0 44.75,70.710938 24.25,23.399124 0 0 0 64.720703,93.720703 c 0.276316,-0.40734 0.503874,-0.867778 0.787109,-1.267578 1.70087,-2.400855 3.527087,-4.666237 5.470704,-6.798828 1.943616,-2.132591 4.004963,-4.133318 6.179687,-6.003906 2.174725,-1.870589 4.461274,-3.611714 6.855469,-5.226563 2.394195,-1.614848 4.896019,-3.10338 7.498047,-4.46875 0.539935,-0.283322 1.133058,-0.500695 1.68164,-0.773437 A 24.25,23.399124 0 0 0 69,47.310547 Z"
+                  id="ellipse5659"
+                  transform="translate(0,752.36216)"
+                />
+              </g>
+              <g transform="matrix(-1,0,0,1,300,0)" id="g5685">
+                <ellipse
+                  ry="33.289474"
+                  rx="34.5"
+                  cy="823.07269"
+                  cx="69"
+                  id="ellipse5687"
+                  style={{ fill: '#784421', illOpacity: 1 }}
+                />
+                <path
+                  transform="translate(0,752.36216)"
+                  id="path5689"
+                  d="M 69,47.310547 A 24.25,23.399124 0 0 0 44.75,70.710938 24.25,23.399124 0 0 0 64.720703,93.720703 c 0.276316,-0.40734 0.503874,-0.867778 0.787109,-1.267578 1.70087,-2.400855 3.527087,-4.666237 5.470704,-6.798828 1.943616,-2.132591 4.004963,-4.133318 6.179687,-6.003906 2.174725,-1.870589 4.461274,-3.611714 6.855469,-5.226563 2.394195,-1.614848 4.896019,-3.10338 7.498047,-4.46875 0.539935,-0.283322 1.133058,-0.500695 1.68164,-0.773437 A 24.25,23.399124 0 0 0 69,47.310547 Z"
+                  style={{ fill: '#e9c6af', fillOpacity: 1 }}
+                />
+              </g>
+              <ellipse
+                ry="9.6790915"
+                rx="9.2701159"
+                cy="900.38916"
+                cx="105.83063"
+                id="path4368"
+                style={{ fill: '#000000', fillOpacity: 1 }}
+              />
+              <ellipse
+                style={{ fill: '#000000', fillOpacity: 1 }}
+                id="ellipse4370"
+                cx="186.89894"
+                cy="900.38916"
+                rx="9.2701159"
+                ry="9.6790915"
+              />
+              {count >= angerLimit && (
+                <Fragment>
+                  <path
+                    id="path4396"
+                    d="m 92.05833,865.4614 39.42665,22.76299"
+                    style={{
+                      stroke: '#000000',
+                      strokeWidth: 4.86408424,
+                      strokeLinecap: 'round',
+                      strokeLinejoin: 'round',
+                      strokeMiterlimit: 4,
+                      strokeOpacity: 1,
+                    }}
+                  />
+                  <path
+                    style={{
+                      stroke: '#000000',
+                      strokeWidth: 4.86408424,
+                      strokeLinecap: 'round',
+                      strokeLinejoin: 'round',
+                      strokeMiterlimit: 4,
+                      strokeOpacity: 1,
+                    }}
+                    d="m 202.82482,865.4614 -39.42664,22.76299"
+                    id="path4400"
+                  />
+                </Fragment>
+              )}
+            </g>
+          </g>
+        </svg>
+      </div>
+      <div ref={armWrapRef} className="bear__arm-wrap">
+        <svg
+          ref={armRef}
+          className="bear__arm"
+          viewBox="0 0 250.00001 99.999997"
+          preserveAspectRatio="xMinYMin">
+          <g transform="translate(868.57141,-900.93359)" id="layer1">
+            <path
+              style={{ fill: '#784421', fillOpacity: 1 }}
+              d="m -619.43416,945.05124 c 4.18776,73.01076 -78.25474,53.24342 -150.21568,52.94118 -82.38711,-0.34602 -98.92158,-19.44459 -98.92157,-47.05883 0,-27.61424 4.78794,-42.54902 73.82353,-42.54902 69.03559,0 171.43607,-30.93764 175.31372,36.66667 z"
+              id="path4971"
+            />
+            <ellipse
+              style={{ fill: '#e9c6af', fillOpacity: 1 }}
+              id="path4974"
+              cx="-683.02264"
+              cy="950.98572"
+              rx="29.910826"
+              ry="29.414362"
+            />
+          </g>
+        </svg>
+      </div>
+      <div ref={pawRef} className="bear__paw" />
+      <div className="mask" />
+      <div className="checkbox" onMouseOver={onHover} onMouseOut={offHover}>
+        <input type="checkbox" onChange={onChange} checked={checked} />
+        <div ref={bgRef} className="checkbox__bg" />
+        <div ref={indicatorRef} className="checkbox__indicator" />
+      </div>
+    </Fragment>
+  )
 }
 
-ReactDOM.render(<DoorUI />, document.getElementById('app'));
-
-TweenMax.globalTimeScale(1.5)
+render(<App />, rootNode)
